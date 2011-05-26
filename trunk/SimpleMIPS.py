@@ -10,7 +10,7 @@ ENDIAN = "<"
 NameList = {}
 CallStack = []
 logdir = str(time.time())
-logcount = 0
+lastcount = 0
 
 class ElfHeader:
 	def __init__(self,binary):
@@ -236,6 +236,12 @@ def mult(inst,states):
 	states.lo = Unsign(result & 0xffffffff)
 	states.hi = Unsign(result>>32)
 
+def div(inst,states):
+	op1 = Sign(states.regFile[inst.rs],32)
+	op2 = Sign(states.regFile[inst.rt],32)
+	states.lo = Unsign(op1/op2)
+	states.hi = Unsign(op1%op2)
+
 def multu(inst,states):
 	result = states.regFile[inst.rs]*states.regFile[inst.rt]
 	states.lo = Unsign(result & 0xffffffff)
@@ -273,7 +279,7 @@ def xor(inst,states):
 #	print "syscall seen, v0: %x at address %x" % (regFile[2],pc)
 
 def arith(inst,states):
-	localmap = {0:sll,9:jalr,33:addu,35:subu,8:jr,42:slt,24:mult,18:mflo, 43:sltu, 36:opand, 37:opor, 2:srl, 25:multu, 16:mfhi, 39:nor, 3:sra, 4:sllv, 38:xor}
+	localmap = {0:sll,9:jalr,33:addu,35:subu,8:jr,42:slt,24:mult,18:mflo, 43:sltu, 36:opand, 37:opor, 2:srl, 25:multu, 16:mfhi, 39:nor, 3:sra, 4:sllv, 38:xor, 26:div}
 	assert inst.optype in localmap,"Unrecognized optype: %d, in address %x" % (inst.optype,states.pc)
 	return localmap[inst.optype](inst,states)
 
@@ -410,25 +416,25 @@ def DumpRegisterFile(regFile):
 	for i in range(0,32):
 		print "R",i," = ","%x" % regFile[i]
 
-def log(states):
-	LOG = False
-	global logcount
-	if states.pc in NameList:
+def log(states,count):
+	global lastcount
+	LOG = True
+	#if states.pc in NameList:
 		#print NameList[states.pc]
-		if LOG and logcount%150==0:
-			f = open(logdir+"/"+str(logcount)+"_"+NameList[states.pc],"w")
-			for i in range(0,32):
-				f.write(str(states.regFile[i]))
-				f.write("\t")
-			f.write(str(states.pc)+"\t"+str(states.hi)+"\t"+str(states.lo)+"\n")
-			f.write(str(len(states.mem.Mem[0]))+"\t"+str(len(states.mem.Mem[1]))+"\t"+str(len(states.mem.Mem[2]))+"\n")
-			for i in range(0,3):
-				for j in range(0,len(states.mem.Mem[i])):
-					f.write(str(states.mem.Mem[i][j]))
-					f.write(" ")
-				f.write("\n")
-			f.close()
-		logcount += 1
+	if LOG and count-lastcount>=5000000:
+		f = open(logdir+"/log","w")
+		for i in range(0,32):
+			f.write(str(states.regFile[i]))
+			f.write("\t")
+		f.write(str(states.pc)+"\t"+str(states.hi)+"\t"+str(states.lo)+"\n")
+		f.write(str(len(states.mem.Mem[0]))+"\t"+str(len(states.mem.Mem[1]))+"\t"+str(len(states.mem.Mem[2]))+"\n")
+		for i in range(0,3):
+			for j in range(0,len(states.mem.Mem[i])):
+				f.write(str(states.mem.Mem[i][j]))
+				f.write(" ")
+			f.write("\n")
+		f.close()
+		lastcount = count
 
 def Simulate(states):	
 	minsp = 0x80000000
@@ -455,7 +461,7 @@ def Simulate(states):
 		if jump:
 			states.pc = temppc
 			jump = False
-			log(states)
+			log(states,count)
 		elif status==2:
 			states.pc = npc + 4
 		elif status==1:
@@ -497,7 +503,7 @@ if len(sys.argv)==3:
 else:
 	resumeFile = ""
 states = States(start,mem,resumeFile)
-#os.mkdir(logdir)
+os.mkdir(logdir)
 Simulate(states)
 endtime = time.time()
 print "Time slapsed: ",str(endtime-starttime),"s"
