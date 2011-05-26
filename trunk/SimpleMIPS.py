@@ -461,7 +461,7 @@ def Simulate(states):
 		if jump:
 			states.pc = temppc
 			jump = False
-			log(states,count)
+			log(states,counter)
 		elif status==2:
 			states.pc = npc + 4
 		elif status==1:
