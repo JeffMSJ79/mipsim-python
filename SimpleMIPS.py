@@ -471,8 +471,8 @@ def DumpRegisterFile(regFile):
 def log(states,count):
 	global lastcount
 	LOG = True
-	if states.pc in NameList:
-		print NameList[states.pc]
+	#if states.pc in NameList:
+	#	print NameList[states.pc]
 	if LOG and count-lastcount>=100000000:
 		f = open(logdir+"/log","w")
 		for i in range(0,32):
