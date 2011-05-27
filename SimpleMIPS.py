@@ -5,7 +5,6 @@ import time
 import os
 
 DEBUG = False
-ENDIAN = "<"
 
 NameList = {}
 CallStack = []
@@ -14,15 +13,18 @@ lastcount = 0
 
 class ElfHeader:
 	def __init__(self,binary):
-		self.e_ident, self.e_type, self.e_machine, self.e_version, self.e_entry, self.e_phoff, self.e_shoff, self.e_flags, self.e_ehsize, self.e_phentsize, self.e_phnum, self.e_shentsize, self.e_shnum, self.e_shstrndx = struct.unpack("<16shhiiiiihhhhhh",binary)
+		global endianch
+		self.e_ident, self.e_type, self.e_machine, self.e_version, self.e_entry, self.e_phoff, self.e_shoff, self.e_flags, self.e_ehsize, self.e_phentsize, self.e_phnum, self.e_shentsize, self.e_shnum, self.e_shstrndx = struct.unpack(endianch+"16shhiiiiihhhhhh",binary)
 
 class SectionHeader:
 	def __init__(self,binary):
-		self.sh_name, self.sh_type, self.sh_flags, self.sh_addr, self.sh_offset, self.sh_size, self.sh_link, self.sh_info, self.sh_addralign, self.sh_entsize = struct.unpack("<iiiiiiiiii",binary)
+		global endianch
+		self.sh_name, self.sh_type, self.sh_flags, self.sh_addr, self.sh_offset, self.sh_size, self.sh_link, self.sh_info, self.sh_addralign, self.sh_entsize = struct.unpack(endianch+"iiiiiiiiii",binary)
 
 class SymbolTableEntry:
 	def __init__(self,binary):
-		self.st_name, self.st_value, self.st_size, self.st_info, self.st_other, self.st_shndx = struct.unpack("<IIIBBH",binary)
+		global endianch
+		self.st_name, self.st_value, self.st_size, self.st_info, self.st_other, self.st_shndx = struct.unpack(endianch+"IIIBBH",binary)
 
 class NameEntry:
 	def __init__(self,n_value,n_type,n_name):
@@ -49,7 +51,7 @@ class Memory:
 		if diff>0:
 			self.Mem[index].extend([0]*(diff))
 		if index!=1:
-			self.Mem[index][offset:offset+datasize] = struct.unpack("<%dI" % datasize, data)
+			self.Mem[index][offset:offset+datasize] = struct.unpack(endianch+"%dI" % datasize, data)
 
 	def Read(self,addr,pc):
 		index = self.FindRange(addr)
@@ -111,11 +113,28 @@ def GetNameInStringTable(index,strtable):
 		index += 1
 	return ret
 
-#Assume no arguments right now
-def GetFileName():
-	assert len(sys.argv)>=2, "Please provide the binary to simulate."
-	fileName = sys.argv[1]
-	return fileName
+def ProcessArguments():
+	fileName = ""
+	global bigendian
+	global endianch
+	bigendian = True
+	restoreLogName = ""
+	for i in range(1,len(sys.argv),2):
+		assert len(sys.argv)>i+1, "Usage: ./SimpleMIPS.py -f [binary] (-e [endian]) (-r [logfile])"
+		if sys.argv[i]=="-f":
+			fileName = sys.argv[i+1]
+		elif sys.argv[i]=="-e":
+			if sys.argv[i+1]=="little":
+				bigendian = False
+			else:
+				assert sys.argv[i+1]=="big","Invalid endian option: "+sys.argv[i+1]+". It should be either big or little"
+		elif sys.argv[i]=="-r":
+			restoreLogName = sys.argv[i+1]
+	if bigendian:
+		endianch = ">"
+	else:
+		endianch = "<"
+	return fileName,restoreLogName
 
 def GetElfHeader(f):
 	eh = ElfHeader(f.read(52))
@@ -297,37 +316,52 @@ def lw(inst,states):
 	states.regFile[inst.rt] = states.mem.Read(states.regFile[inst.rs]+Sign(inst.imm,16),states.pc)
 
 def lb(inst,states):
+	global bigendian
 	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
 	base = addr&0xfffffffc
 	offset = addr&3
+	if bigendian:
+		offset = 3 - offset
 	mask = 0xff<<(offset*8)
 	states.regFile[inst.rt] = Sign((states.mem.Read(base,states.pc)&mask)>>(8*offset),8)
 
 def sb(inst,states):
+	global bigendian
 	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
 	base = addr&0xfffffffc
 	offset = addr&3
+	if bigendian:
+		offset = 3 - offset
 	mask = 0xff<<(offset*8)
 	states.mem.Write(base,(states.mem.Read(base,states.pc)&(~mask))|((states.regFile[inst.rt]&0xff)<<(offset*8)),states.pc)
 
 def sh(inst,states):
+	global bigendian
 	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
 	base = addr&0xfffffffc
 	offset = addr&3
+	if bigendian:
+		offset = 2 - offset
 	mask = 0xffff<<(offset*8)
 	states.mem.Write(base,(states.mem.Read(base,states.pc)&(~mask))|((states.regFile[inst.rt]&0xffff)<<(offset*8)),states.pc)
 
 def lbu(inst,states):
+	global bigendian
 	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
 	base = addr&0xfffffffc
 	offset = addr&3
+	if bigendian:
+		offset = 3 - offset
 	mask = 0xff<<(offset*8)
 	states.regFile[inst.rt] = (states.mem.Read(base,states.pc)&mask)>>(8*offset)
 
 def lhu(inst,states):
+	global bigendian
 	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
 	base = addr&0xfffffffc
 	offset = addr&3
+	if bigendian:
+		offset = 2 - offset
 	mask = 0xffff<<(offset*8)
 	states.regFile[inst.rt] = (states.mem.Read(base,states.pc)&mask)>>(8*offset)
 
@@ -394,22 +428,45 @@ def j(inst,states):
 	return 1
 
 def swr(inst,states):
+	global bigendian
 	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
 	index = addr&3
 	base = addr&0xfffffffc
-	states.mem.Write(base,(states.mem.Read(base,states.pc)&(0xffffffff>>((4-index)*8)))|(states.regFile[inst.rt]&(0xffffffff<<(index*8))),states.pc)
+	if bigendian:
+		states.mem.Write(base,(states.mem.Read(base,states.pc)&(0xffffffff>>((1+index)*8)))|(states.regFile[inst.rt]<<((3-index)*8)),states.pc)
+	else:
+		states.mem.Write(base,(states.mem.Read(base,states.pc)&(0xffffffff>>((4-index)*8)))|(states.regFile[inst.rt]&(0xffffffff<<(index*8))),states.pc)
+
+def swl(inst,states):
+	global bigendian
+	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
+	index = addr&3
+	base = addr&0xfffffffc
+	if bigendian:
+		states.mem.Write(base,(states.mem.Read(base,states.pc)&(0xffffffff<<(index*8)))|(states.regFile[inst.rt]>>(index*8)),states.pc)
+	else:
+		states.mem.Write(base,(states.mem.Read(base,states.pc)&(0xffffffff<<((1+index)*8)))|(states.regFile[inst.rt]>>((3-index)*8)),states.pc)
+
 
 def lwr(inst,states):
+	global bigendian
 	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
 	index = addr&3
 	base = addr&0xfffffffc
-	states.regFile[inst.rt] = (states.regFile[inst.rt] & (0xffffffff<<((4-index)*8))) | (states.mem.Read(base,states.pc) & (0xffffffff>>(index*8)))
+	if bigendian:
+		states.regFile[inst.rt] = (states.regFile[inst.rt] & (0xffffffff<<((1+index)*8))) | (states.mem.Read(base,states.pc) >> ((3-index)*8))
+	else:
+		states.regFile[inst.rt] = (states.regFile[inst.rt] & (0xffffffff<<((4-index)*8))) | (states.mem.Read(base,states.pc) & (0xffffffff>>(index*8)))
 
 def lwl(inst,states):
+	global bigendian
 	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
 	index = addr&3
 	base = addr&0xfffffffc
-	states.regFile[inst.rt] = (states.regFile[inst.rt] & (0xffffffff>>((index+1)*8))) | (states.mem.Read(base,states.pc) & (0xffffffff<<((index+1)*8)))
+	if bigendian:
+		states.regFile[inst.rt] = (states.regFile[inst.rt] & (0xffffffff>>((4-index)*8))) | (states.mem.Read(base,states.pc)<<(index*8))
+	else:
+		states.regFile[inst.rt] = (states.regFile[inst.rt] & (0xffffffff>>((index+1)*8))) | (states.mem.Read(base,states.pc) & (0xffffffff<<((index+1)*8)))
 
 def DumpRegisterFile(regFile):
 	print "Register Dump:"
@@ -419,8 +476,8 @@ def DumpRegisterFile(regFile):
 def log(states,count):
 	global lastcount
 	LOG = True
-	#if states.pc in NameList:
-		#print NameList[states.pc]
+	if states.pc in NameList:
+		print NameList[states.pc]
 	if LOG and count-lastcount>=5000000:
 		f = open(logdir+"/log","w")
 		for i in range(0,32):
@@ -438,7 +495,7 @@ def log(states,count):
 
 def Simulate(states):	
 	minsp = 0x80000000
-	opmap = {0:arith, 1:blt, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgt, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 32:lb, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 43:sw, 46:swr}
+	opmap = {0:arith, 1:blt, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgt, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 32:lb, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 42:swl, 43:sw, 46:swr}
 	counter = 0
 	jump = False
 	while states.pc!=0:
@@ -480,29 +537,23 @@ def Simulate(states):
 	print "Maximum Stack Size: %x" % (0x80000000-minsp)
 
 def exportBinary(mem,start):
-	names = ["instmem","bss","stack"]
-	for i in range(0,3):
-		f = open(names[i],"wb")
-		for j in range(0,len(mem.Mem[i])):
-			x = mem.Mem[i][j]
-			f.write(chr(x&0xff))
-			f.write(chr((x>>8)&0xff))
-			f.write(chr((x>>16)&0xff))
-			f.write(chr((x>>24)&0xff))
-		f.close()
+	f = open("instmem","wb")
+	for j in range(0,len(mem.Mem[0])):
+		x = mem.Mem[0][j]
+		f.write(chr((x>>24)&0xff))
+		f.write(chr((x>>16)&0xff))
+		f.write(chr((x>>8)&0xff))
+		f.write(chr(x&0xff))
+	f.close()
 	print "PC starts at %x" % start
 
 starttime = time.time()
-fileName = GetFileName()
+fileName,logName = ProcessArguments()
 f = open(fileName,"rb")
 mem,start,end = ProcessBinary(f)
 f.close()
 #exportBinary(mem,start)
-if len(sys.argv)==3:
-	resumeFile = sys.argv[2]
-else:
-	resumeFile = ""
-states = States(start,mem,resumeFile)
+states = States(start,mem,logName)
 os.mkdir(logdir)
 Simulate(states)
 endtime = time.time()
