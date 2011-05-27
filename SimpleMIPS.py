@@ -478,7 +478,7 @@ def log(states,count):
 	LOG = True
 	if states.pc in NameList:
 		print NameList[states.pc]
-	if LOG and count-lastcount>=5000000:
+	if LOG and count-lastcount>=100000000:
 		f = open(logdir+"/log","w")
 		for i in range(0,32):
 			f.write(str(states.regFile[i]))
