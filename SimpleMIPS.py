@@ -4,12 +4,9 @@ import struct
 import time
 import os
 
-DEBUG = False
-
-NameList = {}
-CallStack = []
-logdir = str(time.time())
-lastcount = 0
+NameList = {}			#Mapping between address and function name, for debugging purpose
+logdir = str(time.time())	#The name of the directory that stores checkpoints
+lastcount = 0			#The number of instructions executed at last checkpoint
 
 class ElfHeader:
 	def __init__(self,binary):
@@ -34,7 +31,7 @@ class NameEntry:
 
 class Memory:
 	def __init__(self):
-		self.Mem = [[],[],[0]*2097152] # InstMem, Bss, Stack
+		self.Mem = [[],[],[0]*2097152] # InstMem, Bss, Stack(Initial size 8M bytes)
 		self.Ranges = [[0x400000,0xfffffff],[0x10000000,0x40000000],[0x80000000,0x80000000]]
 
 	def FindRange(self,addr):
@@ -294,12 +291,10 @@ def sllv(inst,states):
 def xor(inst,states):
 	states.regFile[inst.rd] = states.regFile[inst.rt] ^ states.regFile[inst.rs]
 
-#def syscall():
-#	print "syscall seen, v0: %x at address %x" % (regFile[2],pc)
 
 def arith(inst,states):
 	localmap = {0:sll,9:jalr,33:addu,35:subu,8:jr,42:slt,24:mult,18:mflo, 43:sltu, 36:opand, 37:opor, 2:srl, 25:multu, 16:mfhi, 39:nor, 3:sra, 4:sllv, 38:xor, 26:div}
-	assert inst.optype in localmap,"Unrecognized optype: %d, in address %x" % (inst.optype,states.pc)
+	assert inst.optype in localmap,"Unrecognized optype in arithmatic instruction: %d, in address %x" % (inst.optype,states.pc)
 	return localmap[inst.optype](inst,states)
 
 def beq(inst,states):
@@ -499,12 +494,10 @@ def Simulate(states):
 	counter = 0
 	jump = False
 	while states.pc!=0:
-		#print "%x" % pc
 		#Fetch / Decode
 		inst = Inst(mem.Read(states.pc,states.pc))
 
 		#Execute
-		#try:
 		assert inst.opcode in opmap,"Unrecognized opcode: %d, in address %x" % (inst.opcode,states.pc)
 
 		npc = states.pc + 4
@@ -512,9 +505,6 @@ def Simulate(states):
 		#0: Normal	1:Jump		2:Likely branch not taken
 		status = opmap[inst.opcode](inst,states)
 
-		#except Exception,err:
-		#	print "Errors in address 0x%x" % pc
-		#	raise err
 		if jump:
 			states.pc = temppc
 			jump = False
@@ -531,7 +521,6 @@ def Simulate(states):
 		counter += 1
 		minsp = min(states.regFile[29],minsp)
 	print "Number of instructions simulated: ",counter
-	#if DEBUG:
 	DumpRegisterFile(states.regFile)
 	print "Minimum sp: 0x%x" % (minsp)
 	print "Maximum Stack Size: %x" % (0x80000000-minsp)
