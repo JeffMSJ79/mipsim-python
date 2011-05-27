@@ -9,9 +9,9 @@
 
 The simulator supports the following arguments:
 
--f [filename]: Gives the name of the binary to simulator. (mandatory)
--e [endian]: Gives the endian of the binary ("little" or "big") (optional)
--r [filename]: Gives the checkpoint file that you want to restore from. (optional)
+-f filename: Gives the name of the binary to simulator. (mandatory)
+-e endian: Gives the endian of the binary ("little" or "big") (optional)
+-r filename: Gives the checkpoint file that you want to restore from. (optional)
 
 Example:
 ./SimpleMIPS.py -f test -e big -r log
