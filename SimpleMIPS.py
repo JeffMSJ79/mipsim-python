@@ -277,6 +277,9 @@ def jalr(inst,states):
 def srl(inst,states):
 	states.regFile[inst.rd] = states.regFile[inst.rt] >> inst.amt
 
+def srlv(inst,states):
+	states.regFile[inst.rd] = states.regFile[inst.rt] >> states.regFile[inst.rs]
+
 def sra(inst,states):
 	highbit = (states.regFile[inst.rt]&0x80000000)>>31
 	dup = (highbit<<inst.amt)-highbit
@@ -293,7 +296,7 @@ def xor(inst,states):
 
 
 def arith(inst,states):
-	localmap = {0:sll,9:jalr,33:addu,35:subu,8:jr,42:slt,24:mult,18:mflo, 43:sltu, 36:opand, 37:opor, 2:srl, 25:multu, 16:mfhi, 39:nor, 3:sra, 4:sllv, 38:xor, 26:div}
+	localmap = {0:sll,6:srlv, 9:jalr,33:addu,35:subu,8:jr,42:slt,24:mult,18:mflo, 43:sltu, 36:opand, 37:opor, 2:srl, 25:multu, 16:mfhi, 39:nor, 3:sra, 4:sllv, 38:xor, 26:div}
 	assert inst.optype in localmap,"Unrecognized optype in arithmatic instruction: %d, in address %x" % (inst.optype,states.pc)
 	return localmap[inst.optype](inst,states)
 
