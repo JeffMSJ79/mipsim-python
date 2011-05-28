@@ -421,6 +421,13 @@ def bnel(inst,states):
 	else:
 		return 2
 
+def blel(inst,states):
+	if states.regFile[inst.rs]<=states.regFile[inst.rt]:
+		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
+		return 1
+	else:
+		return 2
+
 def j(inst,states):
 	states.pc = (states.pc&0xf0000000) | (inst.target<<2)
 	return 1
@@ -493,7 +500,7 @@ def log(states,count):
 
 def Simulate(states):	
 	minsp = 0x80000000
-	opmap = {0:arith, 1:blt, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgt, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 32:lb, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 42:swl, 43:sw, 46:swr}
+	opmap = {0:arith, 1:blt, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgt, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 22:blel, 32:lb, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 42:swl, 43:sw, 46:swr}
 	counter = 0
 	jump = False
 	while states.pc!=0:
