@@ -7,6 +7,7 @@ import os
 NameList = {}			#Mapping between address and function name, for debugging purpose
 logdir = str(time.time())	#The name of the directory that stores checkpoints
 lastcount = 0			#The number of instructions executed at last checkpoint
+CallStack = []			#Store the current call stack, for debugging purpose
 
 class ElfHeader:
 	def __init__(self,binary):
@@ -233,6 +234,9 @@ def nor(inst,states):
 
 def jr(inst,states):
 	states.pc = states.regFile[inst.rs]
+	global CallStack
+	if inst.rs==31:
+		CallStack.pop()
 	return 1
 
 def slt(inst,states):
@@ -478,10 +482,18 @@ def DumpRegisterFile(regFile):
 	for i in range(0,32):
 		print "R",i," = ","%x" % regFile[i]
 
+def DumpStack():
+	global CallStack
+	print "Call Stack Dump:"
+	for name in CallStack:
+		print name
+	return ""
+
 def log(states,count):
 	global lastcount
 	LOG = True
-	#if states.pc in NameList:
+	if states.pc in NameList:
+		CallStack.append(NameList[states.pc])
 	#	print NameList[states.pc]
 	if LOG and count-lastcount>=100000000:
 		f = open(logdir+"/log","w")
@@ -508,7 +520,7 @@ def Simulate(states):
 		inst = Inst(mem.Read(states.pc,states.pc))
 
 		#Execute
-		assert inst.opcode in opmap,"Unrecognized opcode: %d, in address %x" % (inst.opcode,states.pc)
+		assert inst.opcode in opmap,"Unrecognized opcode: %d, in address %x" % (inst.opcode,states.pc)+DumpStack()
 
 		npc = states.pc + 4
 
