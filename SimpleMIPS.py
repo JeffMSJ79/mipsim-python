@@ -72,6 +72,8 @@ class States:
 		self.lo = 0
 		self.regFile[28] = 0x10008000
 		self.regFile[29] = 0x80000000
+		self.count = 0
+		self.minsp = 0x80000000
 
 		if resumeFile!="":
 			f = open(resumeFile,"r")
@@ -82,6 +84,8 @@ class States:
 			self.pc = int(regs[32])
 			self.hi = int(regs[33])
 			self.lo = int(regs[34])
+			self.count = int(regs[35])
+			self.minsp = int(regs[36])
 			line = f.readline()
 			sizes = line.split("\t")
 			for i in range(0,3):
@@ -489,18 +493,18 @@ def DumpStack():
 		print name
 	return ""
 
-def log(states,count):
+def log(states):
 	global lastcount
 	LOG = True
 	if states.pc in NameList:
 		CallStack.append(NameList[states.pc])
 	#	print NameList[states.pc]
-	if LOG and count-lastcount>=100000000:
+	if LOG and states.count-lastcount>=100000000:
 		f = open(logdir+"/log","w")
 		for i in range(0,32):
 			f.write(str(states.regFile[i]))
 			f.write("\t")
-		f.write(str(states.pc)+"\t"+str(states.hi)+"\t"+str(states.lo)+"\n")
+		f.write(str(states.pc)+"\t"+str(states.hi)+"\t"+str(states.lo)+"\t"+str(states.count)+"\t"+str(states.minsp)+"\n")
 		f.write(str(len(states.mem.Mem[0]))+"\t"+str(len(states.mem.Mem[1]))+"\t"+str(len(states.mem.Mem[2]))+"\n")
 		for i in range(0,3):
 			for j in range(0,len(states.mem.Mem[i])):
@@ -508,12 +512,10 @@ def log(states,count):
 				f.write(" ")
 			f.write("\n")
 		f.close()
-		lastcount = count
+		lastcount = states.count
 
 def Simulate(states):	
-	minsp = 0x80000000
 	opmap = {0:arith, 1:blt, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgt, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 22:blel, 32:lb, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 42:swl, 43:sw, 46:swr}
-	counter = 0
 	jump = False
 	while states.pc!=0:
 		#Fetch / Decode
@@ -527,10 +529,13 @@ def Simulate(states):
 		#0: Normal	1:Jump		2:Likely branch not taken
 		status = opmap[inst.opcode](inst,states)
 
+		states.count += 1
+		states.minsp = min(states.regFile[29],states.minsp)
+
 		if jump:
 			states.pc = temppc
 			jump = False
-			log(states,counter)
+			log(states)
 		elif status==2:
 			states.pc = npc + 4
 		elif status==1:
@@ -540,8 +545,6 @@ def Simulate(states):
 		else:
 			states.pc = npc
 
-		counter += 1
-		minsp = min(states.regFile[29],minsp)
 	print "Number of instructions simulated: ",counter
 	DumpRegisterFile(states.regFile)
 	print "Minimum sp: 0x%x" % (minsp)
