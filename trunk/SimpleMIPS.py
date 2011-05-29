@@ -238,9 +238,6 @@ def nor(inst,states):
 
 def jr(inst,states):
 	states.pc = states.regFile[inst.rs]
-	global CallStack
-	if inst.rs==31:
-		CallStack.pop()
 	return 1
 
 def slt(inst,states):
@@ -305,6 +302,8 @@ def xor(inst,states):
 
 def arith(inst,states):
 	localmap = {0:sll,6:srlv, 9:jalr,33:addu,35:subu,8:jr,42:slt,24:mult,18:mflo, 43:sltu, 36:opand, 37:opor, 2:srl, 25:multu, 16:mfhi, 39:nor, 3:sra, 4:sllv, 38:xor, 26:div}
+	if not inst.optype in localmap:
+		DumpStack()
 	assert inst.optype in localmap,"Unrecognized optype in arithmatic instruction: %d, in address %x" % (inst.optype,states.pc)
 	return localmap[inst.optype](inst,states)
 
@@ -487,19 +486,25 @@ def DumpRegisterFile(regFile):
 		print "R",i," = ","%x" % regFile[i]
 
 def DumpStack():
-	global CallStack
-	print "Call Stack Dump:"
-	for name in CallStack:
-		print name
+	print "\nCall Stack Dump:"
+	for i in range(0,len(CallStack),2):
+		print CallStack[i]
+	print ""
 	return ""
 
-def log(states):
+def log(states,npc):
 	global lastcount
 	LOG = True
 	if states.pc in NameList:
 		CallStack.append(NameList[states.pc])
+		CallStack.append(npc)
+	elif len(CallStack)>0 and states.pc==CallStack[-1]:
+		CallStack.pop(-1)
+		CallStack.pop(-1)
+
 	#	print NameList[states.pc]
 	if LOG and states.count-lastcount>=100000000:
+		DumpStack()
 		f = open(logdir+"/log","w")
 		for i in range(0,32):
 			f.write(str(states.regFile[i]))
@@ -522,7 +527,9 @@ def Simulate(states):
 		inst = Inst(mem.Read(states.pc,states.pc))
 
 		#Execute
-		assert inst.opcode in opmap,"Unrecognized opcode: %d, in address %x" % (inst.opcode,states.pc)+DumpStack()
+		if not inst.opcode in opmap:
+			DumpStack()
+		assert inst.opcode in opmap,"Unrecognized opcode: %d, in address %x" % (inst.opcode,states.pc)
 
 		npc = states.pc + 4
 
@@ -535,7 +542,7 @@ def Simulate(states):
 		if jump:
 			states.pc = temppc
 			jump = False
-			log(states)
+			log(states,npc)
 		elif status==2:
 			states.pc = npc + 4
 		elif status==1:
