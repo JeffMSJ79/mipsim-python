@@ -119,7 +119,9 @@ def ProcessArguments():
 	fileName = ""
 	global bigendian
 	global endianch
+	global enablelog
 	bigendian = True
+	enablelog = False
 	restoreLogName = ""
 	for i in range(1,len(sys.argv),2):
 		assert len(sys.argv)>i+1, "Usage: ./SimpleMIPS.py -f [binary] (-e [endian]) (-r [logfile])"
@@ -132,6 +134,9 @@ def ProcessArguments():
 				assert sys.argv[i+1]=="big","Invalid endian option: "+sys.argv[i+1]+". It should be either big or little"
 		elif sys.argv[i]=="-r":
 			restoreLogName = sys.argv[i+1]
+		elif sys.argv[i]=="-l":
+			if sys.argv[i+1]=="yes":
+				enablelog = True
 	if bigendian:
 		endianch = ">"
 	else:
@@ -184,8 +189,6 @@ def AnalyzeSections(f,sections,shstrtab):
 		f.seek(sh.sh_offset)
 		data = f.read(sh.sh_size)
 		if sh.sh_addr>=0x400000:
-			if sh.sh_addr>=0x10000000:
-				print name
 			mem.PutData(sh.sh_addr,data)
 		if name==".symtab":
 			symtab = data
@@ -492,18 +495,43 @@ def DumpStack():
 	print ""
 	return ""
 
+def printf(states):
+	formatStrAddr = states.regFile[4]
+	formatStr = ""
+	finish = False
+	while not finish:
+		finish = False
+		s = states.mem.Read(formatStrAddr,0)
+		for i in range(0,4):
+			if s&0xff000000!=0:
+				formatStr += chr(s>>24)
+				s = (s<<8)&0xffffffff
+			else:
+				finish = True
+				break
+		formatStrAddr += 4
+	if formatStr.find("%d")>=0:
+		num = states.regFile[5]
+		formatStr = formatStr.replace("%d",str(num))
+	print formatStr,
+
 def log(states,npc):
 	global lastcount
 	LOG = True
 	if states.pc in NameList:
-		CallStack.append(NameList[states.pc])
-		CallStack.append(npc)
+		if NameList[states.pc]=="_IO_printf":
+			printf(states)
+			states.pc = states.regFile[31]
+			return
+		else:	
+			CallStack.append(NameList[states.pc])
+			CallStack.append(npc)
 	elif len(CallStack)>0 and states.pc==CallStack[-1]:
 		CallStack.pop(-1)
 		CallStack.pop(-1)
 
 	#	print NameList[states.pc]
-	if LOG and states.count-lastcount>=100000000:
+	if LOG and states.count-lastcount>=100000000 and enablelog:
 		DumpStack()
 		f = open(logdir+"/log","w")
 		for i in range(0,32):
@@ -552,10 +580,10 @@ def Simulate(states):
 		else:
 			states.pc = npc
 
-	print "Number of instructions simulated: ",counter
+	print "Number of instructions simulated: ",states.count
 	DumpRegisterFile(states.regFile)
-	print "Minimum sp: 0x%x" % (minsp)
-	print "Maximum Stack Size: %x" % (0x80000000-minsp)
+	print "Minimum sp: 0x%x" % (states.minsp)
+	print "Maximum Stack Size: %x" % (0x80000000-states.minsp)
 
 def exportBinary(mem,start):
 	f = open("instmem","wb")
@@ -575,7 +603,8 @@ mem,start,end = ProcessBinary(f)
 f.close()
 #exportBinary(mem,start)
 states = States(start,mem,logName)
-os.mkdir(logdir)
+if enablelog:
+	os.mkdir(logdir)
 Simulate(states)
 endtime = time.time()
 print "Time slapsed: ",str(endtime-starttime),"s"
