@@ -237,7 +237,7 @@ def opor(inst,states):
 	states.regFile[inst.rd] = states.regFile[inst.rs] | states.regFile[inst.rt]
 
 def nor(inst,states):
-	states.regFile[inst.rd] =~(states.regFile[inst.rs] | states.regFile[inst.rt])
+	states.regFile[inst.rd] =Unsign(~(states.regFile[inst.rs] | states.regFile[inst.rt]))
 
 def jr(inst,states):
 	states.pc = states.regFile[inst.rs]
@@ -268,8 +268,8 @@ def div(inst,states):
 
 def multu(inst,states):
 	result = states.regFile[inst.rs]*states.regFile[inst.rt]
-	states.lo = Unsign(result & 0xffffffff)
-	states.hi = Unsign(result>>32)
+	states.lo = result & 0xffffffff
+	states.hi = result>>32
 
 def mflo(inst,states):
 	states.regFile[inst.rd] = states.lo
@@ -386,7 +386,7 @@ def sltiu(inst,states):
 		states.regFile[inst.rt] = 0
 
 def lui(inst,states):
-	states.regFile[inst.rt] = (inst.imm<<16)&0xffffffff
+	states.regFile[inst.rt] = inst.imm<<16
 
 def ori(inst,states):
 	states.regFile[inst.rt] = states.regFile[inst.rs] | inst.imm
