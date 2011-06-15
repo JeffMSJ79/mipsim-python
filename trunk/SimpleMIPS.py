@@ -58,7 +58,6 @@ class Memory:
 		return self.Mem[index][offset]
 
 	def Write(self,addr,value,pc):
-		print "%x" % addr
 		index = self.FindRange(addr)
 		offset = abs(addr-self.Ranges[index][0])/4
 		assert offset<len(self.Mem[index]),"Memory Write out of boundary, index: %d, address: %x, range: %x, pc: %x" % (index,addr,len(self.Mem[index]),pc)
