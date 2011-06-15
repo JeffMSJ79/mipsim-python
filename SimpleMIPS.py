@@ -58,6 +58,7 @@ class Memory:
 		return self.Mem[index][offset]
 
 	def Write(self,addr,value,pc):
+		print "%x" % addr
 		index = self.FindRange(addr)
 		offset = abs(addr-self.Ranges[index][0])/4
 		assert offset<len(self.Mem[index]),"Memory Write out of boundary, index: %d, address: %x, range: %x, pc: %x" % (index,addr,len(self.Mem[index]),pc)
@@ -293,6 +294,12 @@ def sra(inst,states):
 	dup = (highbit<<inst.amt)-highbit
 	states.regFile[inst.rd] = (states.regFile[inst.rt] + (dup << 32)) >> inst.amt
 
+def srav(inst,states):
+	highbit = (states.regFile[inst.rt]&0x80000000)>>31
+	dup = (highbit<<states.regFile[inst.rs])-highbit
+	states.regFile[inst.rd] = (states.regFile[inst.rt] + (dup << 32)) >> states.regFile[inst.rs]
+
+
 def sll(inst,states):
 	states.regFile[inst.rd] = (states.regFile[inst.rt] << inst.amt) & 0xffffffff
 
@@ -304,7 +311,7 @@ def xor(inst,states):
 
 
 def arith(inst,states):
-	localmap = {0:sll,6:srlv, 9:jalr,33:addu,35:subu,8:jr,42:slt,24:mult,18:mflo, 43:sltu, 36:opand, 37:opor, 2:srl, 25:multu, 16:mfhi, 39:nor, 3:sra, 4:sllv, 38:xor, 26:div}
+	localmap = {0:sll,6:srlv, 9:jalr,33:addu,35:subu,8:jr,42:slt,24:mult,18:mflo, 43:sltu, 36:opand, 37:opor, 2:srl, 25:multu, 16:mfhi, 39:nor, 3:sra, 4:sllv, 38:xor, 26:div, 7:srav}
 	if not inst.optype in localmap:
 		DumpStack()
 	assert inst.optype in localmap,"Unrecognized optype in arithmatic instruction: %d, in address %x" % (inst.optype,states.pc)
