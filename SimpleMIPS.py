@@ -190,6 +190,8 @@ def AnalyzeSections(f,sections,shstrtab):
 		data = f.read(sh.sh_size)
 		if sh.sh_addr>=0x400000:
 			mem.PutData(sh.sh_addr,data)
+		if name==".data":
+			print "%x %x" % (sh.sh_addr,sh.sh_size)
 		if name==".symtab":
 			symtab = data
 		elif name==".strtab":
@@ -413,8 +415,13 @@ def ble(inst,states):
 		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
 		return 1
 
-def blt(inst,states):
-	if Sign(states.regFile[inst.rs],32)<Sign(states.regFile[inst.rt],32):
+def bltz(inst,states):
+	if Sign(states.regFile[inst.rs],32)<0:
+		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
+		return 1
+
+def bgez(inst,states):
+	if Sign(states.regFile[inst.rs],32)>=0:
 		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
 		return 1
 
@@ -489,6 +496,11 @@ def lwl(inst,states):
 	else:
 		states.regFile[inst.rt] = (states.regFile[inst.rt] & (0xffffffff>>((index+1)*8))) | (states.mem.Read(base,states.pc) & (0xffffffff<<((index+1)*8)))
 
+def regimm(inst,states):
+	localmap = {0:bltz,1:bgez};
+	assert inst.rt in localmap,"Unrecognized type in REGIMM instruction: %d, in address %x" % (inst.rt,states.pc)
+	return localmap[inst.rt](inst,states)
+
 def DumpRegisterFile(regFile):
 	print "Register Dump:"
 	for i in range(0,32):
@@ -554,7 +566,7 @@ def log(states,npc):
 		lastcount = states.count
 
 def Simulate(states):	
-	opmap = {0:arith, 1:blt, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgt, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 22:blel, 32:lb, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 42:swl, 43:sw, 46:swr}
+	opmap = {0:arith, 1:regimm, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgt, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 22:blel, 32:lb, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 42:swl, 43:sw, 46:swr}
 	jump = False
 	while states.pc!=0:
 		#Fetch / Decode
@@ -607,7 +619,7 @@ fileName,logName = ProcessArguments()
 f = open(fileName,"rb")
 mem,start,end = ProcessBinary(f)
 f.close()
-#exportBinary(mem,start)
+exportBinary(mem,start)
 states = States(start,mem,logName)
 if enablelog:
 	os.mkdir(logdir)
