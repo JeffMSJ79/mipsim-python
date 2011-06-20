@@ -569,6 +569,12 @@ def Simulate(states):
 	opmap = {0:arith, 1:regimm, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgt, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 22:blel, 32:lb, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 42:swl, 43:sw, 46:swr}
 	jump = False
 	while states.pc!=0:
+		#print "%x:" % states.pc,
+		#for i in range(0,32):
+		#	print "%x" % states.regFile[i],
+		#print ""
+		#if states.pc==0x4007b4:
+		#	break
 		#Fetch / Decode
 		inst = Inst(mem.Read(states.pc,states.pc))
 
