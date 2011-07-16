@@ -34,6 +34,8 @@ class Memory:
 	def __init__(self):
 		self.Mem = [[],[],[0]*2097152] # InstMem, Bss, Stack(Initial size 8M bytes)
 		self.Ranges = [[0x400000,0xfffffff],[0x10000000,0x40000000],[0x80000000,0x80000000]]
+		self.MaxBss = 0
+		self.MinBss = 0x40000000
 
 	def FindRange(self,addr):
 		index = 0
@@ -53,12 +55,22 @@ class Memory:
 
 	def Read(self,addr,pc):
 		index = self.FindRange(addr)
+		if index==1:
+			print "bss"
+			self.MaxBss = max(self.MaxBss,addr)
+			self.MinBss = min(self.MinBss,addr)
+
 		offset = abs(addr-self.Ranges[index][0])/4
 		assert offset<len(self.Mem[index]),"Memory Read out of boundary, index: %d, address: %x, range: %x, pc: %x" % (index,addr,len(self.Mem[index]),pc)
 		return self.Mem[index][offset]
 
 	def Write(self,addr,value,pc):
 		index = self.FindRange(addr)
+		if index==1:
+			print "bss"
+			self.MaxBss = max(self.MaxBss,addr)
+			self.MinBss = min(self.MinBss,addr)
+
 		offset = abs(addr-self.Ranges[index][0])/4
 		assert offset<len(self.Mem[index]),"Memory Write out of boundary, index: %d, address: %x, range: %x, pc: %x" % (index,addr,len(self.Mem[index]),pc)
 		self.Mem[index][offset] = value
@@ -95,6 +107,13 @@ class States:
 				for j in range(0,size):
 					self.mem.Mem[i][j] = int(line[j])
 			f.close()
+
+	def dump(self):
+		print self.count,
+		print "%x" % self.pc,
+		for i in range(0,32):
+			print "%x" % self.regFile[i],
+		print ""
 
 class Inst:
 	def __init__(self,inst):
@@ -280,6 +299,7 @@ def mfhi(inst,states):
 	states.regFile[inst.rd] = states.hi
 
 def jalr(inst,states):
+	states.dump()
 	states.regFile[31] = states.pc+8
 	states.pc = states.regFile[inst.rs]
 	return 1
@@ -406,6 +426,7 @@ def xori(inst,states):
 	states.regFile[inst.rt] = states.regFile[inst.rs] ^ inst.imm
 
 def jal(inst,states):
+	states.dump()
 	states.regFile[31] = states.pc+8
 	states.pc = ((states.pc&0xf0000000) | (inst.target<<2))
 	return 1
@@ -531,7 +552,7 @@ def printf(states):
 	if formatStr.find("%d")>=0:
 		num = states.regFile[5]
 		formatStr = formatStr.replace("%d",str(num))
-	print formatStr,
+	print "printf:",formatStr,
 
 def log(states,npc):
 	global lastcount
@@ -568,13 +589,17 @@ def log(states,npc):
 def Simulate(states):	
 	opmap = {0:arith, 1:regimm, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgt, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 22:blel, 32:lb, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 42:swl, 43:sw, 46:swr}
 	jump = False
+	minpc = 0xffffffff
+	maxpc = 0
 	while states.pc!=0:
-		#print "%x:" % states.pc,
-		#for i in range(0,32):
-		#	print "%x" % states.regFile[i],
-		#print ""
-		#if states.pc==0x4007b4:
-		#	break
+#		print "%x: %x" % (states.pc,states.regFile[31])
+#		for i in range(0,32):
+#			print "%x" % states.regFile[i],
+#		print ""
+		if states.pc>maxpc:
+			maxpc = states.pc
+		if states.pc<minpc:
+			minpc = states.pc
 		#Fetch / Decode
 		inst = Inst(mem.Read(states.pc,states.pc))
 
@@ -608,24 +633,28 @@ def Simulate(states):
 	DumpRegisterFile(states.regFile)
 	print "Minimum sp: 0x%x" % (states.minsp)
 	print "Maximum Stack Size: %x" % (0x80000000-states.minsp)
+	print "Maximum Bss Address: %x" % states.mem.MaxBss
+	print "Minimum Bss Address: %x" % states.mem.MinBss
+	print "Max PC: %x" % maxpc
+	print "Min PC: %x" % minpc
+	exportBinary(mem,minpc,maxpc)
 
-def exportBinary(mem,start):
+def exportBinary(mem,minpc,maxpc):
 	f = open("instmem","wb")
-	for j in range(0,len(mem.Mem[0])):
-		x = mem.Mem[0][j]
+	for j in range(0,(maxpc-minpc)/4+1):
+		x = mem.Mem[0][j+(minpc-0x400000)/4]
 		f.write(chr((x>>24)&0xff))
 		f.write(chr((x>>16)&0xff))
 		f.write(chr((x>>8)&0xff))
 		f.write(chr(x&0xff))
 	f.close()
-	print "PC starts at %x" % start
 
 starttime = time.time()
 fileName,logName = ProcessArguments()
 f = open(fileName,"rb")
 mem,start,end = ProcessBinary(f)
 f.close()
-exportBinary(mem,start)
+#exportBinary(mem,start)
 states = States(start,mem,logName)
 if enablelog:
 	os.mkdir(logdir)
