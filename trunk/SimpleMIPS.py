@@ -32,15 +32,17 @@ class NameEntry:
 
 class Memory:
 	def __init__(self):
-		self.Mem = [[],[],[0]*2097152] # InstMem, Bss, Stack(Initial size 8M bytes)
+		self.Mem = [[],[],[0]*8388608] # InstMem, Bss, Stack(Initial size 32M bytes)
 		self.Ranges = [[0x400000,0xfffffff],[0x10000000,0x40000000],[0x80000000,0x80000000]]
 		self.MaxBss = 0
 		self.MinBss = 0x40000000
 
 	def FindRange(self,addr):
-		index = 0
+		index = 0		
 		while index<len(self.Ranges) and addr>self.Ranges[index][1]:
 			index += 1
+		if index>2:
+			DumpStack()
 		return index
 	
 	def PutData(self,addr,data):
@@ -56,7 +58,6 @@ class Memory:
 	def Read(self,addr,pc):
 		index = self.FindRange(addr)
 		if index==1:
-			print "bss"
 			self.MaxBss = max(self.MaxBss,addr)
 			self.MinBss = min(self.MinBss,addr)
 
@@ -67,7 +68,6 @@ class Memory:
 	def Write(self,addr,value,pc):
 		index = self.FindRange(addr)
 		if index==1:
-			print "bss"
 			self.MaxBss = max(self.MaxBss,addr)
 			self.MinBss = min(self.MinBss,addr)
 
@@ -209,8 +209,6 @@ def AnalyzeSections(f,sections,shstrtab):
 		data = f.read(sh.sh_size)
 		if sh.sh_addr>=0x400000:
 			mem.PutData(sh.sh_addr,data)
-		if name==".data":
-			print "%x %x" % (sh.sh_addr,sh.sh_size)
 		if name==".symtab":
 			symtab = data
 		elif name==".strtab":
@@ -299,7 +297,6 @@ def mfhi(inst,states):
 	states.regFile[inst.rd] = states.hi
 
 def jalr(inst,states):
-	states.dump()
 	states.regFile[31] = states.pc+8
 	states.pc = states.regFile[inst.rs]
 	return 1
@@ -426,7 +423,6 @@ def xori(inst,states):
 	states.regFile[inst.rt] = states.regFile[inst.rs] ^ inst.imm
 
 def jal(inst,states):
-	states.dump()
 	states.regFile[31] = states.pc+8
 	states.pc = ((states.pc&0xf0000000) | (inst.target<<2))
 	return 1
