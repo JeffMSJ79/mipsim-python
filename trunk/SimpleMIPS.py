@@ -63,6 +63,8 @@ class Memory:
 
 		offset = abs(addr-self.Ranges[index][0])/4
 		assert offset<len(self.Mem[index]),"Memory Read out of boundary, index: %d, address: %x, range: %x, pc: %x" % (index,addr,len(self.Mem[index]),pc)
+#		if index>0:
+#			print "Read %x from addr %x" % (self.Mem[index][offset],addr)
 		return self.Mem[index][offset]
 
 	def Write(self,addr,value,pc):
@@ -73,6 +75,8 @@ class Memory:
 
 		offset = abs(addr-self.Ranges[index][0])/4
 		assert offset<len(self.Mem[index]),"Memory Write out of boundary, index: %d, address: %x, range: %x, pc: %x" % (index,addr,len(self.Mem[index]),pc)
+#		if index>0:
+#			print "Write %x into addr %x" % (value,addr)
 		self.Mem[index][offset] = value
 
 class States:
@@ -454,6 +458,13 @@ def beql(inst,states):
 	else:
 		return 2
 
+def bltzl(inst,states):
+	if states.regFile[inst.rs]<0:
+		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
+		return 1
+	else:
+		return 2
+
 def bnel(inst,states):
 	if states.regFile[inst.rs]!=states.regFile[inst.rt]:
 		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
@@ -514,7 +525,7 @@ def lwl(inst,states):
 		states.regFile[inst.rt] = (states.regFile[inst.rt] & (0xffffffff>>((index+1)*8))) | (states.mem.Read(base,states.pc) & (0xffffffff<<((index+1)*8)))
 
 def regimm(inst,states):
-	localmap = {0:bltz,1:bgez};
+	localmap = {0:bltz,1:bgez,2:bltzl};
 	assert inst.rt in localmap,"Unrecognized type in REGIMM instruction: %d, in address %x" % (inst.rt,states.pc)
 	return localmap[inst.rt](inst,states)
 
@@ -588,10 +599,10 @@ def Simulate(states):
 	minpc = 0xffffffff
 	maxpc = 0
 	while states.pc!=0:
-#		print "%x: %x" % (states.pc,states.regFile[31])
-#		for i in range(0,32):
+#		for i in range(1,10):
 #			print "%x" % states.regFile[i],
-#		print ""
+#		print "%x %x" % (states.regFile[29],states.regFile[30])
+#		print "%x" % states.pc
 		if states.pc>maxpc:
 			maxpc = states.pc
 		if states.pc<minpc:
