@@ -244,6 +244,7 @@ def Unsign(num):
 def addiu(inst,states):	
 	states.regFile[inst.rt] = Unsign((states.regFile[inst.rs]+Sign(inst.imm,16)) & 0xffffffff)
 
+
 def sw(inst,states):	
 	states.mem.Write(Sign(inst.imm,16)+states.regFile[inst.rs],states.regFile[inst.rt],states.pc)
 
@@ -459,7 +460,7 @@ def beql(inst,states):
 		return 2
 
 def bltzl(inst,states):
-	if states.regFile[inst.rs]<0:
+	if Sign(states.regFile[inst.rs],32)<0:
 		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
 		return 1
 	else:
@@ -474,6 +475,13 @@ def bnel(inst,states):
 
 def blel(inst,states):
 	if states.regFile[inst.rs]<=states.regFile[inst.rt]:
+		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
+		return 1
+	else:
+		return 2
+
+def bltzl(inst,states):
+	if Sign(states.regFile[inst.rs],32)<0:
 		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
 		return 1
 	else:
@@ -558,6 +566,8 @@ def printf(states):
 		formatStrAddr += 4
 	if formatStr.find("%d")>=0:
 		num = states.regFile[5]
+		if num>2147483647:
+			num = num - 4294967296
 		formatStr = formatStr.replace("%d",str(num))
 	print "printf:",formatStr,
 
@@ -603,6 +613,7 @@ def Simulate(states):
 #			print "%x" % states.regFile[i],
 #		print "%x %x" % (states.regFile[29],states.regFile[30])
 #		print "%x" % states.pc
+#		print "%x" % (states.pc-0x400000)
 		if states.pc>maxpc:
 			maxpc = states.pc
 		if states.pc<minpc:
