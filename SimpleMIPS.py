@@ -612,7 +612,7 @@ def Simulate(states):
 #		for i in range(1,10):
 #			print "%x" % states.regFile[i],
 #		print "%x %x" % (states.regFile[29],states.regFile[30])
-#		print "%x" % states.pc
+		print "%x" % states.pc
 #		print "%x" % (states.pc-0x400000)
 		if states.pc>maxpc:
 			maxpc = states.pc
@@ -659,8 +659,8 @@ def Simulate(states):
 
 def exportBinary(mem,minpc,maxpc):
 	f = open("instmem","wb")
-	for j in range(0,(maxpc-minpc)/4+1):
-		x = mem.Mem[0][j+(minpc-0x400000)/4]
+	for j in range(0,len(mem.Mem[0])):
+		x = mem.Mem[0][j]
 		f.write(chr((x>>24)&0xff))
 		f.write(chr((x>>16)&0xff))
 		f.write(chr((x>>8)&0xff))
