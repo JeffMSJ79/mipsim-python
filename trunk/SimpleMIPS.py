@@ -91,6 +91,7 @@ class States:
 		self.regFile[29] = 0x80000000
 		self.count = 0
 		self.minsp = 0x80000000
+		self.fpregs = [0]*32
 
 		if resumeFile!="":
 			f = open(resumeFile,"r")
@@ -464,13 +465,15 @@ def bgez(inst,states):
 		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
 		return 1
 
-def bgtz(inst,states):
-	if Sign(states.regFile[inst.rs],32)==0:
+def bgezl(inst,states):
+	if Sign(states.regFile[inst.rs],32)>=0:
 		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
 		return 1
+	else:
+		return 2
 
-def bgt(inst,states):
-	if Sign(states.regFile[inst.rs],32)>Sign(states.regFile[inst.rt],32):
+def bgtz(inst,states):
+	if Sign(states.regFile[inst.rs],32)>0:
 		states.pc = states.pc + 4 + Sign(inst.imm,16)*4
 		return 1
 
@@ -555,9 +558,18 @@ def lwl(inst,states):
 		states.regFile[inst.rt] = (states.regFile[inst.rt] & (0xffffffff>>((index+1)*8))) | (states.mem.Read(base,states.pc) & (0xffffffff<<((index+1)*8)))
 
 def regimm(inst,states):
-	localmap = {0:bltz,1:bgez,2:bltzl,3:bgtz};
+	localmap = {0:bltz,1:bgez,2:bltzl,3:bgezl};
 	assert inst.rt in localmap,"Unrecognized type in REGIMM instruction: %d, in address %x" % (inst.rt,states.pc)
 	return localmap[inst.rt](inst,states)
+
+def ldc1(inst,states):
+	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
+	states.fpregs[inst.rt] = (states.mem.Read(addr,states.pc)<<32) + states.mem.Read(addr+4,states.pc)
+
+def sdc1(inst,states):
+	addr = states.regFile[inst.rs]+Sign(inst.imm,16)
+	states.mem.Write(addr,states.fpregs[inst.rt]>>32,states.pc)
+	states.mem.Write(addr+4,states.fpregs[inst.rt]%0x100000000,states.pc)
 
 def DumpRegisterFile(regFile):
 	print "Register Dump:"
@@ -594,6 +606,23 @@ def printf(states):
 	if formatStr.find("%x")>=0:
 		num = states.regFile[5]
 		formatStr = formatStr.replace("%x",hex(num))
+	if formatStr.find("%s")>=0:
+		addr = states.regFile[5]
+		str = ""
+		flag = True
+		while flag:
+			x = states.mem.Read(addr,0)
+			chars = []
+			for i in range(0,4):
+				chars.append(x%256)
+				x = x / 256			
+			for i in range(3,-1,-1):
+				if chars[i]==0:
+					flag = False
+					break
+				str += chr(chars[i])
+			addr += 4
+		formatStr = formatStr.replace("%s",str)
 	print "printf:",formatStr,
 
 def log(states,npc):
@@ -629,7 +658,7 @@ def log(states,npc):
 		lastcount = states.count
 
 def Simulate(states):	
-	opmap = {0:arith, 1:regimm, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgt, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 22:blel, 32:lb, 33:lh, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 42:swl, 43:sw, 46:swr}
+	opmap = {0:arith, 1:regimm, 2:j, 3:jal, 4:beq, 5:bne, 6:ble, 7:bgtz, 9:addiu, 10:slti, 11:sltiu, 12:andi, 13:ori, 14: xori, 15:lui, 20: beql, 21: bnel, 22:blel, 32:lb, 33:lh, 34:lwl, 35:lw, 36:lbu, 37:lhu, 38:lwr, 40:sb, 41:sh, 42:swl, 43:sw, 46:swr, 53: ldc1, 61:sdc1}
 	jump = False
 	minpc = 0xffffffff
 	maxpc = 0
