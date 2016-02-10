@@ -1,0 +1,1 @@
+This is a simple functional MIPS binary simulator written in Python, supporting little-endian mips binaries without system calls.
